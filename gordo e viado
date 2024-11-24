@@ -1,0 +1,177 @@
+-- Serviços
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+
+-- Jogador local
+local LocalPlayer = Players.LocalPlayer
+
+-- Configurações
+local markedPlayers = {} -- Tabela para armazenar jogadores marcados
+local markedColor = Color3.fromRGB(0, 0, 255) -- Cor azul para os jogadores marcados
+
+-- Função para criar uma outline (highlight) vermelha ou personalizada
+local function createOutline(player)
+    -- Evitar o jogador local
+    if player == LocalPlayer then return end
+
+    -- Conectar ao CharacterAdded para tratar respawns
+    player.CharacterAdded:Connect(function(character)
+        -- Garantir que o personagem exista
+        if not character then return end
+
+        -- Criar ou substituir o Highlight
+        local highlight = character:FindFirstChildOfClass("Highlight") or Instance.new("Highlight")
+        highlight.Adornee = character
+        highlight.FillTransparency = 1 -- Somente borda
+        highlight.OutlineTransparency = 0 -- Transparência zero para visibilidade
+
+        -- Verificar se o jogador está marcado
+        if markedPlayers[player.Name] then
+            highlight.OutlineColor = markedColor -- Cor azul para o jogador marcado
+        else
+            highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- Vermelho padrão
+        end
+
+        highlight.Parent = character
+    end)
+
+    -- Caso o personagem já exista no momento da entrada
+    if player.Character then
+        local character = player.Character
+        local highlight = character:FindFirstChildOfClass("Highlight") or Instance.new("Highlight")
+        highlight.Adornee = character
+        highlight.FillTransparency = 1
+        highlight.OutlineTransparency = 0
+
+        if markedPlayers[player.Name] then
+            highlight.OutlineColor = markedColor -- Cor azul para o jogador marcado
+        else
+            highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- Vermelho padrão
+        end
+
+        highlight.Parent = character
+    end
+end
+
+-- Aplicar a outline em todos os jogadores existentes
+for _, player in ipairs(Players:GetPlayers()) do
+    createOutline(player)
+end
+
+-- Monitorar jogadores novos
+Players.PlayerAdded:Connect(function(player)
+    createOutline(player)
+end)
+
+-- Limpar Highlights ao sair do jogo
+Players.PlayerRemoving:Connect(function(player)
+    if player.Character then
+        local highlight = player.Character:FindFirstChildOfClass("Highlight")
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+end)
+
+-- Função para encontrar jogadores com base em um nome parcial
+local function findPlayerByPartialName(partialName)
+    local foundPlayers = {}
+    for _, player in ipairs(Players:GetPlayers()) do
+        if string.match(player.Name:lower(), partialName:lower()) then
+            table.insert(foundPlayers, player)
+        end
+    end
+    return foundPlayers
+end
+
+-- Criar interface para marcar um jogador
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    local frame = Instance.new("Frame")
+    local textBox = Instance.new("TextBox")
+    local button = Instance.new("TextButton")
+    local label = Instance.new("TextLabel")
+
+    -- Configurações do ScreenGui
+    screenGui.Name = "MarkPlayerGui"
+    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Enabled = false -- Inicialmente desabilitado
+
+    -- Configurações do Frame
+    frame.Size = UDim2.new(0, 300, 0, 200)
+    frame.Position = UDim2.new(0.5, -150, 0.5, -100)
+    frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    -- Configurações do TextBox
+    textBox.Size = UDim2.new(0.8, 0, 0.3, 0)
+    textBox.Position = UDim2.new(0.1, 0, 0.2, 0)
+    textBox.PlaceholderText = "Digite o nome do jogador"
+    textBox.Text = ""
+    textBox.TextScaled = true
+    textBox.Parent = frame
+
+    -- Configurações do botão
+    button.Size = UDim2.new(0.8, 0, 0.3, 0)
+    button.Position = UDim2.new(0.1, 0, 0.6, 0)
+    button.Text = "Marcar Jogador"
+    button.TextScaled = true
+    button.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+    button.Parent = frame
+
+    -- Configurações do Label
+    label.Size = UDim2.new(0.8, 0, 0.2, 0)
+    label.Position = UDim2.new(0.1, 0, 0.9, 0)
+    label.Text = "Jogadores Marcados: "
+    label.TextScaled = true
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Parent = frame
+
+    -- Ação do botão
+    button.MouseButton1Click:Connect(function()
+        local partialName = textBox.Text
+        if partialName and partialName ~= "" then
+            local foundPlayers = findPlayerByPartialName(partialName)
+            if #foundPlayers > 0 then
+                -- Marcar jogadores encontrados
+                for _, player in ipairs(foundPlayers) do
+                    markedPlayers[player.Name] = true
+                end
+
+                -- Atualizar os highlights
+                for _, player in ipairs(Players:GetPlayers()) do
+                    createOutline(player)
+                end
+
+                -- Atualizar a lista de jogadores marcados no Label
+                local markedList = ""
+                for name, _ in pairs(markedPlayers) do
+                    markedList = markedList .. name .. ", "
+                end
+                label.Text = "Jogadores Marcados: " .. (markedList == "" and "Nenhum" or markedList)
+
+                -- Esconder a interface
+                textBox.Text = "" -- Limpar o campo de texto
+            else
+                -- Exibir uma mensagem caso não encontre jogadores
+                label.Text = "Nenhum jogador encontrado!"
+            end
+        end
+    end)
+
+    return screenGui
+end
+
+-- Criar a interface gráfica
+local ui = createUI()
+
+-- Alternar a visibilidade da interface ao pressionar "L"
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.L then
+        ui.Enabled = not ui.Enabled
+    end
+end)
